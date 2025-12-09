@@ -37,7 +37,7 @@ void displayTable() {
 
     auto wrapText = [](const string &text, int width) -> vector<string> {
         vector<string> lines;
-        int start = 0;
+        size_t start = 0;
         while (start < text.size()) {
             lines.push_back(text.substr(start, width));
             start += width;
@@ -46,7 +46,7 @@ void displayTable() {
     };
 
     // Top line
-    cout << string(tableWidth + 1, '_') << "\n\n";
+    cout << "+" << string(tableWidth, '-') << "+\n";
 
     // Header
     cout << CYAN
@@ -58,7 +58,7 @@ void displayTable() {
          << "|\n" << RESET;
 
     // Separator
-    cout << string(tableWidth + 1, '-') << "\n";
+    cout << "+" << string(tableWidth, '-') << "+\n";
 
     // Rows
     for (auto &p : inventory) {
@@ -68,28 +68,27 @@ void displayTable() {
         vector<string> qtyLines = wrapText(to_string(p.quantity), qtyWidth);
         vector<string> priceLines = wrapText(to_string(p.price), priceWidth);
 
-        // Compute max lines manually (C++14 compatible)
-        int maxLines = idLines.size();
+        size_t maxLines = idLines.size();
         maxLines = max(maxLines, nameLines.size());
         maxLines = max(maxLines, catLines.size());
         maxLines = max(maxLines, qtyLines.size());
         maxLines = max(maxLines, priceLines.size());
 
-        for (int i = 0; i < maxLines; i++) {
+        for (size_t i = 0; i < maxLines; i++) {
             cout << "| "
-                << left << setw(idWidth) << (i < idLines.size() ? idLines[i] : "")
-                << "| " << setw(nameWidth) << (i < nameLines.size() ? nameLines[i] : "")
-                << "| " << setw(catWidth) << (i < catLines.size() ? catLines[i] : "")
-                << "| " << setw(qtyWidth) << (i < qtyLines.size() ? qtyLines[i] : "")
-                << "| " << setw(priceWidth) << (i < priceLines.size() ? priceLines[i] : "")
-                << "|\n";
+                 << left << setw(idWidth) << (i < idLines.size() ? idLines[i] : "")
+                 << "| " << setw(nameWidth) << (i < nameLines.size() ? nameLines[i] : "")
+                 << "| " << setw(catWidth) << (i < catLines.size() ? catLines[i] : "")
+                 << "| " << setw(qtyWidth) << (i < qtyLines.size() ? qtyLines[i] : "")
+                 << "| " << setw(priceWidth) << (i < priceLines.size() ? priceLines[i] : "")
+                 << "|\n";
         }
-        cout << string(tableWidth + 1, '-') << "\n"; // separator between products
+
+        cout << "+" << string(tableWidth, '-') << "+\n"; // separator between products
     }
 
-
     // Bottom line
-    cout << string(tableWidth + 1, '_') << "\n";
+    cout << "+" << string(tableWidth, '-') << "+\n";
 }
 
 // ------------------------
@@ -347,25 +346,47 @@ void loadFromFile() {
 // Display Menu
 // ------------------------
 void displayMenu() {
-    cout << CYAN;
-    cout << "┌──────────────────────────────────────────────────────────┐\n";
-    cout << "│                " << BOLD << "INVENTORY MANAGEMENT SYSTEM" << RESET << CYAN << "               │\n";
-    cout << "└──────────────────────────────────────────────────────────┘\n\n";
+    const int boxWidth = 60; // total width of the box
+    const int menuIndent = 15; // shift menu items toward center
 
-    cout << YELLOW;
-    cout << "[ A ] Add New Products\n";
-    cout << "[ B ] View All Products\n";
-    cout << "[ C ] Search Records\n";
-    cout << "[ D ] Update Product Details\n";
-    cout << "[ E ] Delete Product Details\n";
-    cout << "[ F ] Process Sales (Deduct Stock & Total)\n";
-    cout << "[ G ] Display Low Stock Alerts\n";
-    cout << "[ H ] Save Inventory to File\n";
-    cout << "[ I ] Load Inventory Data at Startup\n\n";
-    cout << "[ X ] Exit Program\n";
+    auto printLine = [&](const string &text, const string &color = "") {
+        int spaceAfter = boxWidth - menuIndent - text.length(); // spaces after text
+        cout << CYAN << "|"
+             << string(menuIndent, ' ')
+             << color << text << RESET
+             << CYAN << string(spaceAfter, ' ')
+             << "|\n" << CYAN;
+    };
 
-    cout << CYAN << "\n────────────────────────────────────────────────────────────\n";
-    cout << RESET;
+    // Top border
+    cout << CYAN << "+" << string(boxWidth, '-') << "+\n";
+
+    // Title (centered)
+    string title = "INVENTORY MANAGEMENT SYSTEM";
+    int titlePadding = (boxWidth - title.length()) / 2;
+    cout << CYAN << "|"
+         << string(titlePadding, ' ')
+         << BOLD << title << RESET
+         << string(boxWidth - titlePadding - title.length(), ' ')
+         << CYAN << "|\n";
+
+    // Separator under title
+    cout << "+" << CYAN << string(boxWidth, '-') << "+\n" << CYAN;
+
+    // Menu items (all on one line, slightly centered)
+    printLine("[A] Add New Products", YELLOW);
+    printLine("[B] View All Products", YELLOW);
+    printLine("[C] Search Records", YELLOW);
+    printLine("[D] Update Product Details", YELLOW);
+    printLine("[E] Delete Product Details", YELLOW);
+    printLine("[F] Process Sales", YELLOW);
+    printLine("[G] Display Low Stock Alerts", YELLOW);
+    printLine("[H] Save Inventory to File", YELLOW);
+    printLine("[I] Load Inventory Data at Startup", YELLOW);
+    printLine("[X] Exit Program", YELLOW);
+
+    // Bottom border
+    cout << CYAN << "+" << string(boxWidth, '-') << "+\n" << RESET;
 }
 
 // ------------------------
