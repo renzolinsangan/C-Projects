@@ -3,6 +3,7 @@
 #include <vector>
 #include <limits>
 #include <iomanip>
+#include <algorithm>
 using namespace std;
 
 // Color codes
@@ -16,7 +17,7 @@ using namespace std;
 #define RED     "\033[31m"
 #define BOLD    "\033[1m"
 
-// Product structure (ID removed)
+// Product structure
 struct Product {
     string name;
     string category;
@@ -24,12 +25,8 @@ struct Product {
     double price;
 };
 
-// Global inventory (ID removed)
-vector<Product> inventory = {
-    {"Laptop", "Electronics", 10, 1200.0},
-    {"Mouse", "Accessories", 50, 25.0},
-    {"Chair", "Furniture", 5, 75.0}
-};
+// Global inventory
+vector<Product> inventory = {};
 
 // ------------------------
 // Display Table
@@ -63,11 +60,7 @@ void displayTable() {
         vector<string> qtyLines = wrapText(to_string(p.quantity), qtyWidth);
         vector<string> priceLines = wrapText(to_string(p.price), priceWidth);
 
-        size_t maxLines = nameLines.size();
-        maxLines = std::max(maxLines, catLines.size());
-        maxLines = std::max(maxLines, qtyLines.size());
-        maxLines = std::max(maxLines, priceLines.size());
-
+        size_t maxLines = max({nameLines.size(), catLines.size(), qtyLines.size(), priceLines.size()});
 
         for (size_t i = 0; i < maxLines; i++) {
             cout << "| "
@@ -116,13 +109,192 @@ void addProduct() {
 }
 
 // ------------------------
+// View All Products
+// ------------------------
 void viewAllProducts() {
     if (inventory.empty()) {
-        cout << RED << "\nNo products found!\n" << RESET;
+        cout << RED << "\nNo products found! Add products first.\n" << RESET;
         return;
     }
+
     cout << GREEN << "\n===== All Products =====\n" << RESET;
     displayTable();
+}
+
+// ------------------------
+// Search Records
+// ------------------------
+void searchRecords() {
+    if (inventory.empty()) {
+        cout << RED << "\nNo products found! Add products first.\n" << RESET;
+        return;
+    }
+
+    cout << GREEN << "\n===== Current Inventory =====\n" << RESET;
+    displayTable();
+
+    cin.ignore();
+    string keyword;
+    cout << BLUE << "\nEnter product name to search: " << RESET;
+    getline(cin, keyword);
+
+    bool found = false;
+    for (auto &p : inventory) {
+        if (p.name.find(keyword) != string::npos) {
+            found = true;
+            cout << GREEN << "\nProduct Found:\n" << RESET;
+            cout << "Name: " << p.name << "\nCategory: " << p.category
+                 << "\nQuantity: " << p.quantity << "\nPrice: " << p.price << "\n";
+        }
+    }
+
+    if (!found)
+        cout << RED << "\nNo matching product found.\n" << RESET;
+
+    cout << GREEN << "\n===== Updated Inventory Table =====\n" << RESET;
+    displayTable();
+}
+
+// ------------------------
+// Update Product
+// ------------------------
+void updateProduct() {
+    if (inventory.empty()) {
+        cout << RED << "\nNo products found! Add products first.\n" << RESET;
+        return;
+    }
+
+    cout << GREEN << "\n===== Current Inventory =====\n" << RESET;
+    displayTable();
+
+    cin.ignore();
+    string name;
+    cout << BLUE << "\nEnter product name to update: " << RESET;
+    getline(cin, name);
+
+    for (auto &p : inventory) {
+        if (p.name == name) {
+            cout << GREEN << "\nUpdating Product...\n" << RESET;
+
+            cout << "New Name: ";
+            getline(cin, p.name);
+
+            cout << "New Category: ";
+            getline(cin, p.category);
+
+            cout << "New Quantity: ";
+            cin >> p.quantity;
+
+            cout << "New Price: ";
+            cin >> p.price;
+
+            cout << GREEN << "\nProduct updated successfully!\n" << RESET;
+
+            cout << GREEN << "\n===== Updated Inventory Table =====\n" << RESET;
+            displayTable();
+            return;
+        }
+    }
+
+    cout << RED << "\nProduct not found.\n" << RESET;
+    displayTable();
+}
+
+// ------------------------
+// Delete Product
+// ------------------------
+void deleteProduct() {
+    if (inventory.empty()) {
+        cout << RED << "\nNo products found! Add products first.\n" << RESET;
+        return;
+    }
+
+    cout << GREEN << "\n===== Current Inventory =====\n" << RESET;
+    displayTable();
+
+    cin.ignore();
+    string name;
+    cout << BLUE << "\nEnter product name to delete: " << RESET;
+    getline(cin, name);
+
+    for (size_t i = 0; i < inventory.size(); i++) {
+        if (inventory[i].name == name) {
+            inventory.erase(inventory.begin() + i);
+            cout << GREEN << "\nProduct deleted successfully!\n" << RESET;
+
+            cout << GREEN << "\n===== Updated Inventory Table =====\n" << RESET;
+            displayTable();
+            return;
+        }
+    }
+
+    cout << RED << "\nProduct not found.\n" << RESET;
+    displayTable();
+}
+
+// ------------------------
+// Process Sales
+// ------------------------
+void processSales() {
+    if (inventory.empty()) {
+        cout << RED << "\nNo products found! Add products first.\n" << RESET;
+        return;
+    }
+
+    cout << GREEN << "\n===== Current Inventory =====\n" << RESET;
+    displayTable();
+
+    cin.ignore();
+    string name;
+    cout << BLUE << "\nEnter product name to sell: " << RESET;
+    getline(cin, name);
+
+    for (auto &p : inventory) {
+        if (p.name == name) {
+            int qty;
+            cout << "Enter quantity sold: ";
+            cin >> qty;
+
+            if (qty > p.quantity) {
+                cout << RED << "\nNot enough stock!\n" << RESET;
+                displayTable();
+                return;
+            }
+
+            p.quantity -= qty;
+            cout << GREEN << "\nSale processed successfully!\n" << RESET;
+
+            cout << GREEN << "\n===== Updated Inventory Table =====\n" << RESET;
+            displayTable();
+            return;
+        }
+    }
+
+    cout << RED << "\nProduct not found.\n" << RESET;
+    displayTable();
+}
+
+// ------------------------
+// Low Stock Alerts
+// ------------------------
+void lowStockAlerts() {
+    if (inventory.empty()) {
+        cout << RED << "\nNo products found! Add products first.\n" << RESET;
+        return;
+    }
+
+    cout << YELLOW << "\n===== LOW STOCK PRODUCTS (Qty < 5) =====\n" << RESET;
+
+    bool any = false;
+    for (auto &p : inventory) {
+        if (p.quantity < 5) {
+            any = true;
+            cout << RED << p.name << " Qty: " << p.quantity << RESET << "\n";
+        }
+    }
+
+    if (!any)
+        cout << GREEN << "All stocks are sufficient.\n" << RESET;
 }
 
 // ------------------------
@@ -197,11 +369,11 @@ int main() {
         switch (choice) {
             case 'A': addProduct(); break;
             case 'B': viewAllProducts(); break;
-            case 'C': /*searchRecords();*/ break;
-            case 'D': /*updateProduct();*/ break;
-            case 'E': /*deleteProduct();*/ break;
-            case 'F': /*processSales();*/ break;
-            case 'G': /*lowStockAlerts();*/ break;
+            case 'C': searchRecords(); break;
+            case 'D': updateProduct(); break;
+            case 'E': deleteProduct(); break;
+            case 'F': processSales(); break;
+            case 'G': lowStockAlerts(); break;
             case 'X':
                 cout << MAGENTA << "\nExiting program... Goodbye!\n" << RESET;
                 break;
