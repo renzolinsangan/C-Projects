@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Inventory Viewer</title>
+<style>
+body { font-family: Arial; background: #f4f4f4; padding: 20px; }
+.container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+table th, table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+table th { background-color: #36c; color: #fff; }
+table tr:nth-child(even) { background-color: #f9f9f9; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Inventory Products</h1>
+<input type="file" id="dbfile" />
+<table id="productsTable">
+<thead>
+<tr>
+<th>Product Name</th>
+<th>Category</th>
+<th>Quantity</th>
+<th>Price</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<script>
+const fileInput = document.getElementById("dbfile");
+const tbody = document.querySelector("#productsTable tbody");
+
+fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const buffer = await file.arrayBuffer();
+    const SQL = await initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}` });
+    const db = new SQL.Database(new Uint8Array(buffer));
+
+    const res = db.exec("SELECT name, category, quantity, price FROM products;");
+    tbody.innerHTML = "";
+
+    if (res.length > 0) {
+        const rows = res[0].values;
+        for (const row of rows) {
+            const tr = document.createElement("tr");
+            row.forEach(cell => {
+                const td = document.createElement("td");
+                td.textContent = cell;
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        }
+    } else {
+        tbody.innerHTML = "<tr><td colspan='4'>No products found.</td></tr>";
+    }
+});
+</script>
+</body>
+</html>
