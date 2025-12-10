@@ -28,6 +28,36 @@ struct Product {
 // Global inventory
 vector<Product> inventory = {};
 
+int getIntInput(const string &prompt) {
+    int value;
+    while (true) {
+        cout << prompt;
+        if (cin >> value) {
+            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // clear leftover input
+            return value;
+        } else {
+            cout << RED << "Invalid input! Please enter a number.\n" << RESET;
+            cin.clear(); // clear error flag
+            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // discard invalid input
+        }
+    }
+}
+
+double getDoubleInput(const string &prompt) {
+    double value;
+    while (true) {
+        cout << prompt;
+        if (cin >> value) {
+            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // clear leftover input
+            return value;
+        } else {
+            cout << RED << "Invalid input! Please enter a number.\n" << RESET;
+            cin.clear(); // clear error flag
+            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // discard invalid input
+        }
+    }
+}
+
 // ------------------------
 // Display Table
 // ------------------------
@@ -92,11 +122,9 @@ void addProduct() {
         cout << "Enter Product Category: ";
         getline(cin, p.category);
 
-        cout << "Enter Quantity: ";
-        cin >> p.quantity;
+        p.quantity = getIntInput("Enter Quantity: ");
 
-        cout << "Enter Price: ";
-        cin >> p.price;
+        p.price = getDoubleInput("Enter Price: ");
 
         inventory.push_back(p);
         cout << GREEN << "\nProduct added successfully!\n" << RESET;
@@ -182,11 +210,9 @@ void updateProduct() {
             cout << "New Category: ";
             getline(cin, p.category);
 
-            cout << "New Quantity: ";
-            cin >> p.quantity;
+            p.quantity = getIntInput("New Quantity: ");
 
-            cout << "New Price: ";
-            cin >> p.price;
+            p.price = getDoubleInput("New Price: ");
 
             cout << GREEN << "\nProduct updated successfully!\n" << RESET;
 
