@@ -4,6 +4,7 @@
 #include <limits>
 #include <iomanip>
 #include <sqlite3.h>
+#include <algorithm>
 
 using namespace std;
 
@@ -33,31 +34,58 @@ void clearInput() {
 void displayResidentsTable() {
     const char* sql_select = "SELECT name, address, contact FROM residents;";
     sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db, sql_select, -1, &stmt, nullptr) == SQLITE_OK) {
-        int nameWidth = 25, addrWidth = 30, contactWidth = 15;
-        int totalWidth = nameWidth + addrWidth + contactWidth + 7;
+    if (sqlite3_prepare_v2(db, sql_select, -1, &stmt, nullptr) != SQLITE_OK) {
+        cout << RED << "Failed to fetch residents.\n" << RESET;
+        return;
+    }
 
-        cout << "+" << string(totalWidth - 2, '-') << "+\n";
-        cout << CYAN
-             << "| " << left << setw(nameWidth) << "Name"
-             << "| " << setw(addrWidth) << "Address"
-             << "| " << setw(contactWidth) << "Contact"
-             << "|\n" << RESET;
-        cout << "+" << string(totalWidth - 2, '-') << "+\n";
+    int nameWidth = 25, addrWidth = 30, contactWidth = 15;
+    int totalWidth = nameWidth + addrWidth + contactWidth + 7;
 
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            string name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-            string addr = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-            string contact = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+    // Table header
+    cout << "+" << string(totalWidth - 2, '-') << "+\n";
+    cout << CYAN
+         << "| " << left << setw(nameWidth) << "Name"
+         << "| " << setw(addrWidth) << "Address"
+         << "| " << setw(contactWidth) << "Contact"
+         << "|\n" << RESET;
+    cout << "+" << string(totalWidth - 2, '-') << "+\n";
 
-            cout << "| " << left << setw(nameWidth) << name
-                 << "| " << setw(addrWidth) << addr
-                 << "| " << setw(contactWidth) << contact
+    // Helper to wrap text into multiple lines
+    auto wrapText = [](const string &text, int width) -> vector<string> {
+        vector<string> lines;
+        size_t start = 0;
+        while (start < text.length()) {
+            lines.push_back(text.substr(start, width));
+            start += width;
+        }
+        return lines;
+    };
+
+    // Table rows
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        string name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        string addr = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        string contact = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+
+        vector<string> nameLines = wrapText(name, nameWidth);
+        vector<string> addrLines = wrapText(addr, addrWidth);
+        vector<string> contactLines = wrapText(contact, contactWidth);
+
+        size_t maxLines = max({nameLines.size(), addrLines.size(), contactLines.size()});
+
+        for (size_t i = 0; i < maxLines; ++i) {
+            cout << "| "
+                 << left << setw(nameWidth) << (i < nameLines.size() ? nameLines[i] : "")
+                 << "| " << setw(addrWidth) << (i < addrLines.size() ? addrLines[i] : "")
+                 << "| " << setw(contactWidth) << (i < contactLines.size() ? contactLines[i] : "")
                  << "|\n";
         }
+
         cout << "+" << string(totalWidth - 2, '-') << "+\n";
-        sqlite3_finalize(stmt);
     }
+
+    sqlite3_finalize(stmt);
 }
 
 void addResident() {
@@ -191,35 +219,67 @@ void deleteResident() {
 // INCIDENTS
 // ------------------------
 void displayIncidentsTable() {
-    const char* sql_select = "SELECT type, location, date, time FROM incidents;";
+    const char* sql_select = "SELECT type, location, date, time, description FROM incidents;";
     sqlite3_stmt* stmt;
-    sqlite3_prepare_v2(db, sql_select, -1, &stmt, nullptr);
+    if (sqlite3_prepare_v2(db, sql_select, -1, &stmt, nullptr) != SQLITE_OK) {
+        cout << RED << "Failed to fetch incidents.\n" << RESET;
+        return;
+    }
 
-    int typeWidth = 15, locWidth = 20, dateWidth = 12, timeWidth = 8;
-    int totalWidth = typeWidth + locWidth + dateWidth + timeWidth + 9;
+    int typeWidth = 15, locWidth = 20, dateWidth = 12, timeWidth = 8, descWidth = 40;
+    int totalWidth = typeWidth + locWidth + dateWidth + timeWidth + descWidth + 11;
 
-    cout << "+" << string(totalWidth, '-') << "+\n";
+    // Table header
+    cout << "+" << string(totalWidth - 2, '-') << "+\n";
     cout << CYAN
          << "| " << left << setw(typeWidth) << "Type"
          << "| " << setw(locWidth) << "Location"
          << "| " << setw(dateWidth) << "Date"
          << "| " << setw(timeWidth) << "Time"
+         << "| " << setw(descWidth) << "Description"
          << "|\n" << RESET;
-    cout << "+" << string(totalWidth, '-') << "+\n";
+    cout << "+" << string(totalWidth - 2, '-') << "+\n";
 
+    // Helper to wrap text into multiple lines
+    auto wrapText = [](const string &text, int width) -> vector<string> {
+        vector<string> lines;
+        size_t start = 0;
+        while (start < text.length()) {
+            lines.push_back(text.substr(start, width));
+            start += width;
+        }
+        return lines;
+    };
+
+    // Table rows
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         string type = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
         string loc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
         string date = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
         string time = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        string desc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
 
-        cout << "| " << left << setw(typeWidth) << type
-             << "| " << setw(locWidth) << loc
-             << "| " << setw(dateWidth) << date
-             << "| " << setw(timeWidth) << time
-             << "|\n";
+        vector<string> typeLines = wrapText(type, typeWidth);
+        vector<string> locLines = wrapText(loc, locWidth);
+        vector<string> dateLines = wrapText(date, dateWidth);
+        vector<string> timeLines = wrapText(time, timeWidth);
+        vector<string> descLines = wrapText(desc, descWidth);
+
+        size_t maxLines = max({typeLines.size(), locLines.size(), dateLines.size(), timeLines.size(), descLines.size()});
+
+        for (size_t i = 0; i < maxLines; ++i) {
+            cout << "| "
+                 << left << setw(typeWidth) << (i < typeLines.size() ? typeLines[i] : "")
+                 << "| " << setw(locWidth) << (i < locLines.size() ? locLines[i] : "")
+                 << "| " << setw(dateWidth) << (i < dateLines.size() ? dateLines[i] : "")
+                 << "| " << setw(timeWidth) << (i < timeLines.size() ? timeLines[i] : "")
+                 << "| " << setw(descWidth) << (i < descLines.size() ? descLines[i] : "")
+                 << "|\n";
+        }
+
+        cout << "+" << string(totalWidth - 2, '-') << "+\n";
     }
-    cout << "+" << string(totalWidth, '-') << "+\n";
+
     sqlite3_finalize(stmt);
 }
 
@@ -266,29 +326,58 @@ void reportIncident() {
 // ANNOUNCEMENTS
 // ------------------------
 void displayAnnouncementsTable() {
-    const char* sql_select = "SELECT title, date FROM announcements;";
+    const char* sql_select = "SELECT title, date, content FROM announcements;";
     sqlite3_stmt* stmt;
-    sqlite3_prepare_v2(db, sql_select, -1, &stmt, nullptr);
+    if (sqlite3_prepare_v2(db, sql_select, -1, &stmt, nullptr) != SQLITE_OK) {
+        cout << RED << "Failed to fetch announcements.\n" << RESET;
+        return;
+    }
 
-    int titleWidth = 25, dateWidth = 12;
-    int totalWidth = titleWidth + dateWidth + 5;
+    int titleWidth = 25, dateWidth = 12, contentWidth = 40;
+    int totalWidth = titleWidth + dateWidth + contentWidth + 7;
 
-    cout << "+" << string(totalWidth, '-') << "+\n";
+    // Table header
+    cout << "+" << string(totalWidth - 2, '-') << "+\n";
     cout << CYAN
          << "| " << left << setw(titleWidth) << "Title"
          << "| " << setw(dateWidth) << "Date"
+         << "| " << setw(contentWidth) << "Content"
          << "|\n" << RESET;
-    cout << "+" << string(totalWidth, '-') << "+\n";
+    cout << "+" << string(totalWidth - 2, '-') << "+\n";
 
+    auto wrapText = [](const string &text, int width) -> vector<string> {
+        vector<string> lines;
+        size_t start = 0;
+        while (start < text.length()) {
+            lines.push_back(text.substr(start, width));
+            start += width;
+        }
+        return lines;
+    };
+
+    // Table rows
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         string title = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
         string date = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        string content = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
 
-        cout << "| " << left << setw(titleWidth) << title
-             << "| " << setw(dateWidth) << date
-             << "|\n";
+        vector<string> titleLines = wrapText(title, titleWidth);
+        vector<string> dateLines = wrapText(date, dateWidth);
+        vector<string> contentLines = wrapText(content, contentWidth);
+
+        size_t maxLines = max({titleLines.size(), dateLines.size(), contentLines.size()});
+
+        for (size_t i = 0; i < maxLines; ++i) {
+            cout << "| "
+                 << left << setw(titleWidth) << (i < titleLines.size() ? titleLines[i] : "")
+                 << "| " << setw(dateWidth) << (i < dateLines.size() ? dateLines[i] : "")
+                 << "| " << setw(contentWidth) << (i < contentLines.size() ? contentLines[i] : "")
+                 << "|\n";
+        }
+
+        cout << "+" << string(totalWidth - 2, '-') << "+\n";
     }
-    cout << "+" << string(totalWidth, '-') << "+\n";
+
     sqlite3_finalize(stmt);
 }
 
