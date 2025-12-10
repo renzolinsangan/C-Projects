@@ -4,6 +4,8 @@
 #include <limits>
 #include <iomanip>
 #include <algorithm>
+#include <sqlite3.h>
+
 using namespace std;
 
 // Color codes
@@ -25,20 +27,23 @@ struct Product {
     double price;
 };
 
-// Global inventory
-vector<Product> inventory = {};
+// SQLite database pointer
+sqlite3* db = nullptr;
 
+// ------------------------
+// Input helpers
+// ------------------------
 int getIntInput(const string &prompt) {
     int value;
     while (true) {
         cout << prompt;
         if (cin >> value) {
-            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // clear leftover input
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
             return value;
         } else {
             cout << RED << "Invalid input! Please enter a number.\n" << RESET;
-            cin.clear(); // clear error flag
-            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // discard invalid input
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
         }
     }
 }
@@ -48,20 +53,49 @@ double getDoubleInput(const string &prompt) {
     while (true) {
         cout << prompt;
         if (cin >> value) {
-            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // clear leftover input
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
             return value;
         } else {
             cout << RED << "Invalid input! Please enter a number.\n" << RESET;
-            cin.clear(); // clear error flag
-            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // discard invalid input
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
         }
     }
+}
+
+// ------------------------
+// Fetch products from DB
+// ------------------------
+vector<Product> fetchAllProducts() {
+    vector<Product> products;
+    const char* sql_select = "SELECT name, category, quantity, price FROM products;";
+    sqlite3_stmt* stmt;
+    sqlite3_prepare_v2(db, sql_select, -1, &stmt, nullptr);
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        Product p;
+        p.name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        p.category = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        p.quantity = sqlite3_column_int(stmt, 2);
+        p.price = sqlite3_column_double(stmt, 3);
+        products.push_back(p);
+    }
+
+    sqlite3_finalize(stmt);
+    return products;
 }
 
 // ------------------------
 // Display Table
 // ------------------------
 void displayTable() {
+    vector<Product> inventory = fetchAllProducts();
+
+    if (inventory.empty()) {
+        cout << RED << "\nNo products found!\n" << RESET;
+        return;
+    }
+
     int nameWidth = 20, catWidth = 15, qtyWidth = 8, priceWidth = 10;
     int tableWidth = nameWidth + catWidth + qtyWidth + priceWidth + 6;
 
@@ -123,12 +157,20 @@ void addProduct() {
         getline(cin, p.category);
 
         p.quantity = getIntInput("Enter Quantity: ");
-
         p.price = getDoubleInput("Enter Price: ");
 
-        inventory.push_back(p);
-        cout << GREEN << "\nProduct added successfully!\n" << RESET;
+        const char* sql_insert = "INSERT INTO products (name, category, quantity, price) VALUES (?, ?, ?, ?);";
+        sqlite3_stmt* stmt;
+        sqlite3_prepare_v2(db, sql_insert, -1, &stmt, nullptr);
+        sqlite3_bind_text(stmt, 1, p.name.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, 2, p.category.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_int(stmt, 3, p.quantity);
+        sqlite3_bind_double(stmt, 4, p.price);
+        if (sqlite3_step(stmt) != SQLITE_DONE)
+            cerr << RED << "Error inserting product.\n" << RESET;
+        sqlite3_finalize(stmt);
 
+        cout << GREEN << "\nProduct added successfully!\n" << RESET;
         displayTable();
 
         cout << "\nAdd another product? (Y/N): ";
@@ -140,11 +182,6 @@ void addProduct() {
 // View All Products
 // ------------------------
 void viewAllProducts() {
-    if (inventory.empty()) {
-        cout << RED << "\nNo products found! Add products first.\n" << RESET;
-        return;
-    }
-
     cout << GREEN << "\n===== All Products =====\n" << RESET;
     displayTable();
 }
@@ -153,28 +190,31 @@ void viewAllProducts() {
 // Search Records
 // ------------------------
 void searchRecords() {
-    if (inventory.empty()) {
-        cout << RED << "\nNo products found! Add products first.\n" << RESET;
-        return;
-    }
+    cin.ignore();
+    string keyword;
 
     cout << GREEN << "\n===== Current Inventory =====\n" << RESET;
     displayTable();
 
-    cin.ignore();
-    string keyword;
     cout << BLUE << "\nEnter product name to search: " << RESET;
     getline(cin, keyword);
 
+    const char* sql_search = "SELECT name, category, quantity, price FROM products WHERE name LIKE ?;";
+    sqlite3_stmt* stmt;
+    sqlite3_prepare_v2(db, sql_search, -1, &stmt, nullptr);
+    string pattern = "%" + keyword + "%";
+    sqlite3_bind_text(stmt, 1, pattern.c_str(), -1, SQLITE_STATIC);
+
     bool found = false;
-    for (auto &p : inventory) {
-        if (p.name.find(keyword) != string::npos) {
-            found = true;
-            cout << GREEN << "\nProduct Found:\n" << RESET;
-            cout << "Name: " << p.name << "\nCategory: " << p.category
-                 << "\nQuantity: " << p.quantity << "\nPrice: " << p.price << "\n";
-        }
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        found = true;
+        cout << GREEN << "\nProduct Found:\n" << RESET;
+        cout << "Name: " << reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0))
+             << "\nCategory: " << reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1))
+             << "\nQuantity: " << sqlite3_column_int(stmt, 2)
+             << "\nPrice: " << sqlite3_column_double(stmt, 3) << "\n";
     }
+    sqlite3_finalize(stmt);
 
     if (!found)
         cout << RED << "\nNo matching product found.\n" << RESET;
@@ -187,42 +227,38 @@ void searchRecords() {
 // Update Product
 // ------------------------
 void updateProduct() {
-    if (inventory.empty()) {
-        cout << RED << "\nNo products found! Add products first.\n" << RESET;
-        return;
-    }
+    cin.ignore();
+    string name;
 
     cout << GREEN << "\n===== Current Inventory =====\n" << RESET;
     displayTable();
 
-    cin.ignore();
-    string name;
-    cout << BLUE << "\nEnter product name to update: " << RESET;
+    cout << BLUE << "Enter product name to update: " << RESET;
     getline(cin, name);
 
-    for (auto &p : inventory) {
-        if (p.name == name) {
-            cout << GREEN << "\nUpdating Product...\n" << RESET;
+    Product p;
+    cout << "New Name: ";
+    getline(cin, p.name);
+    cout << "New Category: ";
+    getline(cin, p.category);
+    p.quantity = getIntInput("New Quantity: ");
+    p.price = getDoubleInput("New Price: ");
 
-            cout << "New Name: ";
-            getline(cin, p.name);
+    const char* sql_update = "UPDATE products SET name=?, category=?, quantity=?, price=? WHERE name=?;";
+    sqlite3_stmt* stmt;
+    sqlite3_prepare_v2(db, sql_update, -1, &stmt, nullptr);
+    sqlite3_bind_text(stmt, 1, p.name.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, p.category.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, p.quantity);
+    sqlite3_bind_double(stmt, 4, p.price);
+    sqlite3_bind_text(stmt, 5, name.c_str(), -1, SQLITE_STATIC);
 
-            cout << "New Category: ";
-            getline(cin, p.category);
+    if (sqlite3_step(stmt) != SQLITE_DONE)
+        cerr << RED << "Error updating product.\n" << RESET;
+    else
+        cout << GREEN << "Product updated successfully!\n" << RESET;
 
-            p.quantity = getIntInput("New Quantity: ");
-
-            p.price = getDoubleInput("New Price: ");
-
-            cout << GREEN << "\nProduct updated successfully!\n" << RESET;
-
-            cout << GREEN << "\n===== Updated Inventory Table =====\n" << RESET;
-            displayTable();
-            return;
-        }
-    }
-
-    cout << RED << "\nProduct not found.\n" << RESET;
+    sqlite3_finalize(stmt);
     displayTable();
 }
 
@@ -230,31 +266,26 @@ void updateProduct() {
 // Delete Product
 // ------------------------
 void deleteProduct() {
-    if (inventory.empty()) {
-        cout << RED << "\nNo products found! Add products first.\n" << RESET;
-        return;
-    }
+    cin.ignore();
+    string name;
 
     cout << GREEN << "\n===== Current Inventory =====\n" << RESET;
     displayTable();
 
-    cin.ignore();
-    string name;
-    cout << BLUE << "\nEnter product name to delete: " << RESET;
+    cout << BLUE << "Enter product name to delete: " << RESET;
     getline(cin, name);
 
-    for (size_t i = 0; i < inventory.size(); i++) {
-        if (inventory[i].name == name) {
-            inventory.erase(inventory.begin() + i);
-            cout << GREEN << "\nProduct deleted successfully!\n" << RESET;
+    const char* sql_delete = "DELETE FROM products WHERE name=?;";
+    sqlite3_stmt* stmt;
+    sqlite3_prepare_v2(db, sql_delete, -1, &stmt, nullptr);
+    sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_STATIC);
 
-            cout << GREEN << "\n===== Updated Inventory Table =====\n" << RESET;
-            displayTable();
-            return;
-        }
-    }
+    if (sqlite3_step(stmt) != SQLITE_DONE)
+        cerr << RED << "Error deleting product.\n" << RESET;
+    else
+        cout << GREEN << "Product deleted successfully!\n" << RESET;
 
-    cout << RED << "\nProduct not found.\n" << RESET;
+    sqlite3_finalize(stmt);
     displayTable();
 }
 
@@ -262,41 +293,47 @@ void deleteProduct() {
 // Process Sales
 // ------------------------
 void processSales() {
-    if (inventory.empty()) {
-        cout << RED << "\nNo products found! Add products first.\n" << RESET;
-        return;
-    }
+    cin.ignore();
+    string name;
 
     cout << GREEN << "\n===== Current Inventory =====\n" << RESET;
     displayTable();
 
-    cin.ignore();
-    string name;
-    cout << BLUE << "\nEnter product name to sell: " << RESET;
+    cout << BLUE << "Enter product name to sell: " << RESET;
     getline(cin, name);
 
-    for (auto &p : inventory) {
-        if (p.name == name) {
-            int qty;
-            cout << "Enter quantity sold: ";
-            cin >> qty;
+    int qty;
+    cout << "Enter quantity sold: ";
+    cin >> qty;
 
-            if (qty > p.quantity) {
-                cout << RED << "\nNot enough stock!\n" << RESET;
-                displayTable();
-                return;
-            }
+    const char* sql_check = "SELECT quantity FROM products WHERE name=?;";
+    sqlite3_stmt* stmt;
+    sqlite3_prepare_v2(db, sql_check, -1, &stmt, nullptr);
+    sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_STATIC);
 
-            p.quantity -= qty;
-            cout << GREEN << "\nSale processed successfully!\n" << RESET;
-
-            cout << GREEN << "\n===== Updated Inventory Table =====\n" << RESET;
-            displayTable();
-            return;
-        }
+    if (sqlite3_step(stmt) != SQLITE_ROW) {
+        cout << RED << "\nProduct not found.\n" << RESET;
+        sqlite3_finalize(stmt);
+        return;
     }
 
-    cout << RED << "\nProduct not found.\n" << RESET;
+    int stock = sqlite3_column_int(stmt, 0);
+    sqlite3_finalize(stmt);
+
+    if (qty > stock) {
+        cout << RED << "\nNot enough stock!\n" << RESET;
+        return;
+    }
+
+    const char* sql_update = "UPDATE products SET quantity=? WHERE name=?;";
+    sqlite3_prepare_v2(db, sql_update, -1, &stmt, nullptr);
+    sqlite3_bind_int(stmt, 1, stock - qty);
+    sqlite3_bind_text(stmt, 2, name.c_str(), -1, SQLITE_STATIC);
+    if (sqlite3_step(stmt) != SQLITE_DONE)
+        cerr << RED << "Error updating stock.\n" << RESET;
+
+    sqlite3_finalize(stmt);
+    cout << GREEN << "\nSale processed successfully!\n" << RESET;
     displayTable();
 }
 
@@ -304,27 +341,25 @@ void processSales() {
 // Low Stock Alerts
 // ------------------------
 void lowStockAlerts() {
-    if (inventory.empty()) {
-        cout << RED << "\nNo products found! Add products first.\n" << RESET;
-        return;
-    }
-
-    cout << YELLOW << "\n===== LOW STOCK PRODUCTS (Qty < 5) =====\n" << RESET;
+    const char* sql_low = "SELECT name, quantity FROM products WHERE quantity < 5;";
+    sqlite3_stmt* stmt;
+    sqlite3_prepare_v2(db, sql_low, -1, &stmt, nullptr);
 
     bool any = false;
-    for (auto &p : inventory) {
-        if (p.quantity < 5) {
-            any = true;
-            cout << RED << p.name << " Qty: " << p.quantity << RESET << "\n";
-        }
+    cout << YELLOW << "\n===== LOW STOCK PRODUCTS (Qty < 5) =====\n" << RESET;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        any = true;
+        cout << RED << reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0))
+             << " Qty: " << sqlite3_column_int(stmt, 1) << RESET << "\n";
     }
+    sqlite3_finalize(stmt);
 
     if (!any)
         cout << GREEN << "All stocks are sufficient.\n" << RESET;
 }
 
 // ------------------------
-// Display Menu
+// Menu
 // ------------------------
 void displayMenu() {
     const int boxWidth = 60;
@@ -363,10 +398,8 @@ void displayMenu() {
     cout << CYAN << "+" << string(boxWidth, '-') << "+\n" << RESET;
 }
 
-// ------------------------
 char getUserChoice() {
     char choice, confirm;
-
     while (true) {
         cout << "Enter your choice: ";
         cin >> choice;
@@ -385,9 +418,32 @@ char getUserChoice() {
 }
 
 // ------------------------
+// Main
+// ------------------------
 int main() {
-    char choice;
+    // Open DB
+    if (sqlite3_open("inventory.db", &db)) {
+        cerr << RED << "Can't open database: " << sqlite3_errmsg(db) << RESET << endl;
+        return 1;
+    }
 
+    // Create table if not exists
+    const char* sql_create = R"(
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            category TEXT,
+            quantity INTEGER,
+            price REAL
+        );
+    )";
+    char* errMsg = nullptr;
+    if (sqlite3_exec(db, sql_create, nullptr, nullptr, &errMsg) != SQLITE_OK) {
+        cerr << RED << "SQL error: " << errMsg << RESET << endl;
+        sqlite3_free(errMsg);
+    }
+
+    char choice;
     do {
         displayMenu();
         choice = getUserChoice();
@@ -411,8 +467,8 @@ int main() {
             cin.get();
             cout << "\n\n";
         }
-
     } while (choice != 'X');
 
+    sqlite3_close(db);
     return 0;
 }

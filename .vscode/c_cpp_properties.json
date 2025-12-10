@@ -4,7 +4,6 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "C:/mysql-connector-cpp-1.1.12/include"
             ],
             "defines": [
                 "_DEBUG",
