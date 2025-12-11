@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Barangay Database Viewer</title>
+<style>
+body { font-family: Arial; background: #eef1f5; padding: 20px; }
+.container { max-width: 1000px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; }
+h1 { text-align: center; }
+nav button {
+    padding: 10px 20px; margin-right: 10px; border: none;
+    background: #36c; color: #fff; border-radius: 5px; cursor: pointer;
+}
+nav button.active { background: #248; }
+table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+table th, table td { border: 1px solid #ccc; padding: 10px; }
+table th { background: #36c; color: #fff; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>Barangay Database Viewer</h1>
+
+<input type="file" id="dbfile" />
+
+<nav style="margin-top: 10px;">
+    <button onclick="showTab('residents')">Residents</button>
+    <button onclick="showTab('incidents')">Incidents</button>
+    <button onclick="showTab('announcements')">Announcements</button>
+</nav>
+
+<div id="residents" class="tab hidden">
+    <h2>Residents</h2>
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Name</th><th>Address</th><th>Contact</th></tr>
+        </thead>
+        <tbody id="residentsBody"></tbody>
+    </table>
+</div>
+
+<div id="incidents" class="tab hidden">
+    <h2>Incidents</h2>
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Type</th><th>Location</th><th>Date</th><th>Time</th><th>Description</th></tr>
+        </thead>
+        <tbody id="incidentsBody"></tbody>
+    </table>
+</div>
+
+<div id="announcements" class="tab hidden">
+    <h2>Announcements</h2>
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Title</th><th>Content</th><th>Date</th></tr>
+        </thead>
+        <tbody id="announcementsBody"></tbody>
+    </table>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<script>
+let db;
+
+// Show selected tab
+function showTab(tabId) {
+    document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
+    document.getElementById(tabId).classList.remove("hidden");
+
+    document.querySelectorAll("nav button").forEach(btn => btn.classList.remove("active"));
+    event.target.classList.add("active");
+}
+
+// Load DB file
+document.getElementById("dbfile").addEventListener("change", async () => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const buffer = await file.arrayBuffer();
+    const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${f}` });
+    db = new SQL.Database(new Uint8Array(buffer));
+
+    loadResidents();
+    loadIncidents();
+    loadAnnouncements();
+
+    alert("Database loaded successfully!");
+});
+
+// Load Residents
+function loadResidents() {
+    const res = db.exec("SELECT id, name, address, contact FROM residents;");
+    const tbody = document.getElementById("residentsBody");
+    tbody.innerHTML = "";
+
+    if (res.length === 0) return;
+
+    res[0].values.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach(cell => {
+            const td = document.createElement("td");
+            td.textContent = cell;
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+}
+
+// Load Incidents
+function loadIncidents() {
+    const res = db.exec("SELECT id, type, location, date, time, description FROM incidents;");
+    const tbody = document.getElementById("incidentsBody");
+    tbody.innerHTML = "";
+
+    if (res.length === 0) return;
+
+    res[0].values.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach(cell => {
+            const td = document.createElement("td");
+            td.textContent = cell;
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+}
+
+// Load Announcements
+function loadAnnouncements() {
+    const res = db.exec("SELECT id, title, content, date FROM announcements;");
+    const tbody = document.getElementById("announcementsBody");
+    tbody.innerHTML = "";
+
+    if (res.length === 0) return;
+
+    res[0].values.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach(cell => {
+            const td = document.createElement("td");
+            td.textContent = cell;
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+}
+</script>
+
+</body>
+</html>
